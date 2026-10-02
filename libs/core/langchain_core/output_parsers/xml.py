@@ -39,6 +39,17 @@ Here are the output tags:
 ```"""  # noqa: E501
 
 
+# `NameStartChar` from the XML 1.0 spec (https://www.w3.org/TR/xml/#NT-NameStartChar).
+# Matching the full set lets streaming find root tags such as `<答案>`, while
+# `<` followed by `/`, `?`, `!`, a digit, or whitespace still does not start XML.
+_XML_NAME_START_CHARS = (
+    ":A-Z_a-z"
+    "\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u02ff\u0370-\u037d\u037f-\u1fff"
+    "\u200c-\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf"
+    "\ufdf0-\ufffd\U00010000-\U000effff"
+)
+
+
 class _StreamingParser:
     """Streaming parser for XML.
 
@@ -72,7 +83,7 @@ class _StreamingParser:
         else:
             parser_ = None
         self.pull_parser = ET.XMLPullParser(["start", "end"], _parser=parser_)
-        self.xml_start_re = re.compile(r"<[a-zA-Z:_]")
+        self.xml_start_re = re.compile(f"<[{_XML_NAME_START_CHARS}]")
         self.current_path: list[str] = []
         self.current_path_has_children = False
         self.buffer = ""

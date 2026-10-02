@@ -2,6 +2,7 @@
 
 import importlib
 from collections.abc import AsyncIterator, Iterable
+from typing import Any, Literal
 
 import pytest
 
@@ -120,6 +121,40 @@ async def test_xml_output_parser_defused(content: str) -> None:
     """Test XMLOutputParser."""
     xml_parser = XMLOutputParser(parser="defusedxml")
     await _test_parser(xml_parser, content)
+
+
+@pytest.mark.parametrize(
+    "parser",
+    [
+        "xml",
+        pytest.param(
+            "defusedxml",
+            marks=pytest.mark.skipif(
+                importlib.util.find_spec("defusedxml") is None,
+                reason="defusedxml is not installed",
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        ("<答案><选项>蓝色</选项></答案>", {"答案": [{"选项": "蓝色"}]}),
+        ("<答案><choice>blue</choice></答案>", {"答案": [{"choice": "blue"}]}),
+        ("Answer:\n```xml\n<Ωμέγα>blue</Ωμέγα>\n```\n", {"Ωμέγα": "blue"}),
+    ],
+)
+async def test_xml_output_parser_streams_non_ascii_root(
+    parser: Literal["xml", "defusedxml"], content: str, expected: dict[str, Any]
+) -> None:
+    """Streaming finds a root tag whose name starts with a non-ASCII letter."""
+    xml_parser = XMLOutputParser(parser=parser)
+    assert xml_parser.parse(content) == expected
+
+    for chunks in ([content], list(content)):
+        assert list(xml_parser.transform(iter(chunks))) == [expected]
+        streamed = [chunk async for chunk in xml_parser.atransform(_as_iter(chunks))]
+        assert streamed == [expected]
 
 
 @pytest.mark.parametrize("result", ["foo></foo>", "<foo></foo", "foo></foo", "foofoo"])
